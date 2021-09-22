@@ -5,7 +5,7 @@ import pyupbit
 import time
 import requests
 
-p_exchange = 1169.12  # Exchange rate initial value
+p_exchange = 1182.02  # Exchange rate initial value
 binance = ccxt.binance({
 'apiKey': '',
 'secret': '',
@@ -13,9 +13,9 @@ binance = ccxt.binance({
 upbit = pyupbit.Upbit('', '')  # Upbit API
 myToken = ''  # Slack token
 ticker = 'EOS'  # Ticker
-count = 230  # Upbit Order quantity
-mount = 1500000  # Order amount
-p_standard = 3.853  # Premium standard
+count = 400  # Upbit Order quantity
+mount = 2500000  # Order amount
+p_standard = 2.8653  # Premium standard
 p_gap = 0.69  # Premium gap
 p_cnt = 299  # Initial count
 
@@ -37,7 +37,6 @@ def get_exchange():
         today = 210817
         exchange = fdr.DataReader('USD/KRW', today).iloc[-1, 0]
     post_message(myToken, "#stock", 'Exchange: ' + str(exchange))
-    print('환율: ' + str(exchange))
     return exchange
 
 
@@ -94,36 +93,36 @@ def get_premium(b_price, u_price, tk):  # Current premium
 
 while True:
     try:
-        if binance_balance('USDT') > (count*binance_usd_price(ticker)+50) and upbit.get_balance('KRW-' + ticker) > count:  # Premium trading
+        if binance_balance('USDT') > (count*binance_usd_price(ticker)+70) and upbit.get_balance('KRW-' + ticker) > count:  # Premium trading
             if get_premium((binance_usd_price(ticker)*p_exchange), upbit_price(ticker), ticker) > (p_standard+p_gap):  # Above standard
                 upbit_sell(ticker, count)
                 binance_buy(ticker, count)
                 post_message(myToken, "#stock", 'Premium trading: ' + str(round(get_premium((binance_usd_price(ticker)*p_exchange), upbit_price(ticker), ticker), 2)) + ' / ' + str(count) + 'ea')
-                p_standard = round((p_standard * 0.99) + (get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker) * 0.01), 9)
-                if binance_balance('USDT') < (count * binance_usd_price(ticker) + 70):  # Reset
+                p_standard = round((p_standard * 0.98) + (get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker) * 0.02), 9)
+                if binance_balance('USDT') < (count * binance_usd_price(ticker) + 80):  # Reset
                     p_exchange = get_exchange()
-                    p_standard = round(get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker), 9)
+                    p_standard = round(get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker), 9) - 1.5*p_gap
                     post_message(myToken, "#stock", 'Standard reset: ' + str(p_standard))
 
-        if upbit.get_balance('KRW') > mount + 50000 and binance_balance(ticker) > mount/binance_price(ticker, p_exchange):  # Reverse premium trading
+        if upbit.get_balance('KRW') > mount + 70000 and binance_balance(ticker) > mount/binance_price(ticker, p_exchange):  # Reverse premium trading
             if get_premium((binance_usd_price(ticker)*p_exchange), upbit_price(ticker), ticker) < (p_standard-p_gap):  # Below standard
-                count2 = round(mount / (upbit_price(ticker) + 5), 1) - 0.5
+                count2 = round(mount / (upbit_price(ticker) + 5), 1) - 1
                 upbit_buy(ticker, mount)
                 binance_sell(ticker, count2)
                 post_message(myToken, "#stock", 'R-premium trading: ' + str(round(get_premium((binance_usd_price(ticker)*p_exchange), upbit_price(ticker), ticker), 2)) + ' / ' + str(count2) + 'ea')
-                p_standard = round((p_standard * 0.99) + (get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker) * 0.01), 9)
+                p_standard = round((p_standard * 0.98) + (get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker) * 0.02), 9)
 
         p_standard = round((p_standard * 0.9999) + (get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker) * 0.0001), 9)
         p_cnt = p_cnt + 1
         time.sleep(7)
 
-        if p_cnt == 300:
+        if p_cnt%300 == 0:
             p_cnt = 0
-            b_krw = float(p_exchange*(1.0 + p_standard/100))
-            krw_balance = round(upbit.get_balance('KRW') + binance_balance('USDT')*b_krw)
+            now_premium = round(get_premium((binance_usd_price(ticker) * p_exchange), upbit_price(ticker), ticker), 2)
+            b_krw = float(p_exchange * (1.0 + now_premium / 100))
+            krw_balance = round(upbit.get_balance('KRW') + binance_balance('USDT') * b_krw)
             ticker_balance = round(upbit.get_balance('KRW-' + ticker) + binance_balance(ticker))
-            now_premium = round(get_premium((binance_usd_price(ticker)*p_exchange), upbit_price(ticker), ticker), 2)
-            post_message(myToken, "#stock", 'Now: ' + str(now_premium) + ' / Std: ' + str(round(p_standard, 2)) + ' / Exc: ' + str(p_exchange) + '\nCrypto: '+str(ticker_balance) + ' / KRW:  ' + str(krw_balance))
+            post_message(myToken, "#stock", 'Now: ' + str(now_premium) + ' / Std: ' + str(round(p_standard, 2)) + ' / Exc: ' + str(p_exchange) + '\nCrypto: ' + str(ticker_balance) + ' / KRW:  ' + str(krw_balance))
 
     except Exception as e:
         post_message(myToken, "#stock", e)
